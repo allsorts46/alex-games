@@ -1,4 +1,5 @@
-﻿using System.Windows.Forms;
+﻿using System.Diagnostics.Metrics;
+using System.Windows.Forms;
 using System.Xml;
 using Timer = System.Threading.Timer;
 
@@ -19,13 +20,25 @@ namespace Numbers
 		{
 		static void Main(string[] args)
 			{
-			var MyNiceWindow = new LinesWindow();
+			var MyNiceWindow = new LinesWindow() { Size = new Size(1000, 800) };
 
 			Application.Run(MyNiceWindow);
 			}
 		}
 
 
+	public class BonusArea
+		{
+		public Rectangle Area;
+		public Int32 WhatNumber;
+		public Brush WhatColour;
+		public Int32 HowManyPoints;
+
+		internal void Draw(Graphics graphics)
+			{
+			graphics.FillRectangle(WhatColour, Area);
+			}
+		}
 
 	public class Bouncer
 		{
@@ -34,6 +47,12 @@ namespace Numbers
 		private Int32 MoveyY;
 		private Pen Pen;
 
+		const Int32 CrashSize = 80;
+		const Int32 ScoreSize = 160;
+
+		public Rectangle CrashBox;
+		public Rectangle ScoreBox;
+		
 		public Bouncer(Pen pen, Size bounds)
 			{
 			var Choose = new Random().Next(4);
@@ -79,13 +98,17 @@ namespace Numbers
 			if (Where.Y > bounds.Height || Where.Y <= 0)
 				MoveyY = -MoveyY;
 
+			CrashBox = new Rectangle(Where.X - CrashSize, Where.Y - CrashSize, CrashSize * 2, CrashSize * 2);
+			ScoreBox = new Rectangle(Where.X - ScoreSize, Where.Y - ScoreSize, ScoreSize * 2, ScoreSize * 2);
 			}
 
 		public void Draw(Graphics g, Size bounds)
 			{
 			LinesWindow.DrawPointingToAPlace(g, bounds, Where, 10, Pen);
-			}
 
+			//g.DrawRectangle(Pens.Black, CrashBox);
+			//g.DrawRectangle(Pens.Black, ScoreBox);
+			}
 		}
 
 	
@@ -98,6 +121,9 @@ namespace Numbers
 		private Point Mousey;
 		private Timer County;
 		private List<Bouncer> Bouncers;
+		private Font ScoreFont;
+		private Int32 Score;
+		private BonusArea[] BonusAreas;
 
         public LinesWindow()
         {
@@ -114,6 +140,18 @@ namespace Numbers
 				new Pen(Color.Gold, 10)
 				};
 
+			BonusAreas = new[]
+				{
+				new BonusArea { WhatNumber = 0, WhatColour = Brushes.Green, HowManyPoints = 3 },
+				new BonusArea { WhatNumber = 1, WhatColour = Brushes.Yellow, HowManyPoints = 2 },
+				new BonusArea { WhatNumber = 2, WhatColour = Brushes.Red },
+				new BonusArea { WhatNumber = 3, WhatColour = Brushes.Blue, HowManyPoints = 4 },
+				};
+
+			OnResize(EventArgs.Empty);
+
+			ScoreFont = new Font("DejaVu Serif", 40);
+
 			County = new Timer(AhhhhTimer, null, TimeSpan.FromMilliseconds(10), TimeSpan.FromMilliseconds(10));
 
 			Bouncers = new List<Bouncer>();
@@ -121,20 +159,27 @@ namespace Numbers
 
 		private void AhhhhTimer(object? state)
 			{
-			const Int32 CrashSize = 80;
-
 			var Crashed = false;
 
-			lock(Bouncers)
+			var AreaBonus = 1;
+
+			foreach (var area in BonusAreas)
+				{
+				if (area.Area.Contains(Mousey))
+					AreaBonus = area.HowManyPoints;
+				}
+
+			lock (Bouncers)
 				{
 				foreach (var bouncer in Bouncers)
 					{
 					bouncer.Move(ClientSize);
 
-					var CrashBox = new Rectangle(bouncer.Where.X - CrashSize, bouncer.Where.Y - CrashSize, CrashSize * 2, CrashSize * 2);
-
-					if (CrashBox.Contains(Mousey))
+					if (bouncer.CrashBox.Contains(Mousey))
 						Crashed = true;
+
+					if (bouncer.ScoreBox.Contains(Mousey))
+						Score = Score + (2 * AreaBonus);
 					}
 				}
 
@@ -148,9 +193,19 @@ namespace Numbers
 			{
 			System.Media.SystemSounds.Beep.Play();
 
-			lock (Bouncers)
-				Bouncers.Clear();
+			ResetGame();
 			}
+
+		protected override void OnResize(EventArgs e)
+			{
+			base.OnResize(e);
+
+			BonusAreas[0].Area = new Rectangle(0, ClientSize.Height - 300, 300, 300);
+			BonusAreas[1].Area = new Rectangle(ClientSize.Width - 300, ClientSize.Height - 300, 300, 300);
+			BonusAreas[2].Area = new Rectangle(ClientSize.Width - 300, 0, 300, 300);
+			BonusAreas[3].Area = new Rectangle(0, 0, 300, 300);
+			}
+
 
 		protected override void OnPaint(PaintEventArgs e)
 			{
@@ -159,7 +214,8 @@ namespace Numbers
 			var Bits = 100f;
 			var XSpace = ClientSize.Width / Bits;
 			var YSpace = ClientSize.Height / Bits;
-
+		
+			/*
 			for (var i = 0; i < Bits; i++)
 				{
 				// Top left
@@ -174,7 +230,14 @@ namespace Numbers
 				// Bottom right
 				e.Graphics.DrawLine(NicePens[3], Width - i * XSpace, ClientSize.Height, ClientSize.Width, i * YSpace);
 				}
+			*/
 
+			// Draw Bonus Areas
+
+			foreach (var bonusArea in BonusAreas)
+				bonusArea.Draw(e.Graphics);
+
+			// Draw Bouncy Things
 
 			lock (Bouncers)
 				{
@@ -182,7 +245,12 @@ namespace Numbers
 					bouncer.Draw(e.Graphics, ClientSize);
 				}
 
+
 			DrawPointingToAPlace(e.Graphics, ClientSize, Mousey, 10, NicePens[5]);
+
+
+
+			e.Graphics.DrawString(Score.ToString(), ScoreFont, Brushes.Black, 0, 0);
 			}
 
 		internal static void DrawPointingToAPlace(Graphics g, Size bounds, Point mousey, Int32 bits, Pen pen)
@@ -223,9 +291,18 @@ namespace Numbers
 
 			else if (e.Button == MouseButtons.Right)
 				{
-				lock (Bouncers)
-					Bouncers.Clear();
+				ResetGame();
 				}
+			}
+
+		private void ResetGame()
+			{
+			lock (Bouncers)
+				Bouncers.Clear();
+
+			Thread.Sleep(10000);
+
+			Score = 0;
 			}
 		}
 	}
