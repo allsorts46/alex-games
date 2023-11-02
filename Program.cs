@@ -1,18 +1,8 @@
 ﻿using System.Diagnostics.Metrics;
-using System.Windows.Forms;
 using System.Xml;
+using Eto.Drawing;
+using Eto.Forms;
 using Timer = System.Threading.Timer;
-
-/*
- *  Score for staying alive longer
- *  Coloured bonus zones - stay inside for score multipliers
- * 
- * 
- * 
-*/
-
-
-
 
 namespace Numbers
 	{
@@ -20,18 +10,17 @@ namespace Numbers
 		{
 		static void Main(string[] args)
 			{
+			var App = new Eto.Forms.Application();
 			var MyNiceWindow = new LinesWindow() { Size = new Size(1000, 800) };
-
-			Application.Run(MyNiceWindow);
+			App.Run(MyNiceWindow);
 			}
 		}
-
 
 	public class BonusArea
 		{
 		public Rectangle Area;
 		public Int32 WhatNumber;
-		public Brush WhatColour;
+		public Brush WhatColour = Brushes.Black;
 		public Int32 HowManyPoints;
 
 		internal void Draw(Graphics graphics)
@@ -127,17 +116,21 @@ namespace Numbers
 
         public LinesWindow()
         {
-			SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true);
-			ResizeRedraw = true;
+			var Canvas = new Drawable();
+			Content = Canvas;
+			Canvas.Paint += OnPaint;
+
+			//SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true);
+			//ResizeRedraw = true;
 
 			NicePens = new[]
 				{
-				new Pen(Color.Blue, 4),
-				new Pen(Color.Red, 5),
-				new Pen(Color.Green, 4),
-				new Pen(Color.Yellow, 5),
-				new Pen(Color.Purple, 5),
-				new Pen(Color.Gold, 10)
+				new Pen(Colors.Blue, 4),
+				new Pen(Colors.Red, 5),
+				new Pen(Colors.Green, 4),
+				new Pen(Colors.Yellow, 5),
+				new Pen(Colors.Purple, 5),
+				new Pen(Colors.Gold, 10)
 				};
 
 			BonusAreas = new[]
@@ -148,7 +141,7 @@ namespace Numbers
 				new BonusArea { WhatNumber = 3, WhatColour = Brushes.Blue, HowManyPoints = 4 },
 				};
 
-			OnResize(EventArgs.Empty);
+			OnSizeChanged(EventArgs.Empty);
 
 			ScoreFont = new Font("DejaVu Serif", 40);
 
@@ -191,14 +184,14 @@ namespace Numbers
 
 		private void AhhhhCrashed()
 			{
-			System.Media.SystemSounds.Beep.Play();
+			//System.Media.SystemSounds.Beep.Play();
 
 			ResetGame();
 			}
 
-		protected override void OnResize(EventArgs e)
-			{
-			base.OnResize(e);
+        protected override void OnSizeChanged(EventArgs e)
+        {
+            base.OnSizeChanged(e);
 
 			BonusAreas[0].Area = new Rectangle(0, ClientSize.Height - 300, 300, 300);
 			BonusAreas[1].Area = new Rectangle(ClientSize.Width - 300, ClientSize.Height - 300, 300, 300);
@@ -207,10 +200,8 @@ namespace Numbers
 			}
 
 
-		protected override void OnPaint(PaintEventArgs e)
+		protected void OnPaint(Object sender, PaintEventArgs e)
 			{
-			base.OnPaint(e);
-
 			var Bits = 100f;
 			var XSpace = ClientSize.Width / Bits;
 			var YSpace = ClientSize.Height / Bits;
@@ -250,7 +241,7 @@ namespace Numbers
 
 
 
-			e.Graphics.DrawString(Score.ToString(), ScoreFont, Brushes.Black, 0, 0);
+			e.Graphics.DrawText(ScoreFont, (SolidBrush)Brushes.Black, 0, 0, Score.ToString());
 			}
 
 		internal static void DrawPointingToAPlace(Graphics g, Size bounds, Point mousey, Int32 bits, Pen pen)
@@ -270,26 +261,26 @@ namespace Numbers
 				g.DrawLine(pen, bounds.Width, y, mousey.X, mousey.Y);
 				}
 			}
-
+        
 		protected override void OnMouseMove(MouseEventArgs e)
 			{
 			base.OnMouseMove(e);
 
-			Mousey = e.Location;
+			Mousey = new Point(e.Location);
 			Invalidate();
 			}
 
-		protected override void OnMouseClick(MouseEventArgs e)
-			{
-			base.OnMouseClick(e);
+        protected override void OnMouseDown(MouseEventArgs e)
+        {
+            base.OnMouseDown(e);
 
-			if (e.Button == MouseButtons.Left)
+			if (e.Buttons == MouseButtons.Primary)
 				{
 				lock (Bouncers)
 					Bouncers.Add(new Bouncer(Pens.Purple, ClientSize));
 				}
 
-			else if (e.Button == MouseButtons.Right)
+			else if (e.Buttons == MouseButtons.Alternate)
 				{
 				ResetGame();
 				}
